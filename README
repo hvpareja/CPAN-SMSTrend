@@ -1,10 +1,10 @@
-    ------------------------------- SMSVal ---------------------------
+    ------------------------------- SMSCli ---------------------------
                                 Hector Valverde
                             www.hectorvaverde.com
 			       hvalverde@uma.es
     ------------------------------------------------------------------
                 
-        SMSVal is an interface developed by Hector Valverde that
+        SMSCli is an interface developed by Hector Valverde that
     connects your computer to the servers of One-etere SMSTrend. You
     can send SMS from your personal computer or server easily.
 
@@ -20,7 +20,7 @@
 	
 	2. CPAN (Recomended):
 	
-	perl -MCPAN -e "install sms"
+	perl -MCPAN -e "install smscli"
 	
     
     CONFIGURATION:
