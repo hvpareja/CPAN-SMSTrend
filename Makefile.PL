@@ -4,7 +4,7 @@ use warnings FATAL => 'all';
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-    NAME             => 'sms',
+    NAME             => 'smscli',
     AUTHOR           => q{Hector Valverde <hvalverde@uma.es>},
     VERSION_FROM     => 'bin/sms',
     ABSTRACT_FROM    => 'bin/sms',
