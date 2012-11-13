@@ -1,0 +1,694 @@
+#!/usr/bin/perl -w
+    
+    #   Copyright 2012, HŽctor Valverde
+
+    #   This program is free software: you can redistribute it and/or modify
+    #   it under the terms of the GNU General Public License as published by
+    #   the Free Software Foundation, either version 3 of the License, or
+    #   (at your option) any later version.
+    #   
+    #   This program is distributed in the hope that it will be useful,
+    #   but WITHOUT ANY WARRANTY; without even the implied warranty of
+    #   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    #   GNU General Public License for more details.
+    #   
+    #   You should have received a copy of the GNU General Public License
+    #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+no warnings;
+
+# Chapter 0: ----------------------------------------------------------
+# Headers, dependences and options ------------------------------------
+# You can choose between the following actions:
+# 1. Send a new message
+# 2. Check status for a given message (order_id needed - see below -)
+# 3. Cancel a programed sending
+# 4. View message history
+# 5. Check the remaining credit
+# 6. Configure SMSTrend account
+# 7. View help
+# 8. File sending (new)
+# For future versions we will be able to receive SMS, but not yet
+
+# 0.1 Headers
+# Library to handle HTTP packets
+use HTTP::Request::Common qw(POST);
+# User Agent definition to send HTTP request
+use LWP::UserAgent;
+# Home path from environment
+my $home = $ENV{"HOME"};
+
+our $VERSION = 2.15;
+# ---------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+# Chapter 1: ----------------------------------------------------------
+# Input variables -----------------------------------------------------
+# Constant parameters                                                 #
+ my $base_url="https://www.smstrend.net/Trend/";# Provider base url   #  
+ my %opts_url=(          # url for the choosen option:                #
+                "SEND"    => "SENDSMS",          # Opt 1. New message #
+                "STATUS"  => "SMSSTATUS",        # Opt 2. View status #
+                "CANCEL"  => "REMOVE_DELAYED",   # Opt 3. Cancel      #
+                "HISTORY" => "SMSHISTORY",       # Opt 4. History     #
+                "CREDIT"  => "CREDITS",          # Opt 5. Credit      #
+                "CONFIG"  => "NO_URL",           # Opt 6. Config      #
+                "HELP"    => "NO_URL",           # Opt 7. Help        #
+                "FSEND"   => "SENDSMS"           # Opt 8. File send   #
+               );                                                     #
+ my $login;              # Login: User name for SMSTrend              #
+                                                                      #
+ my $password;           # Password: Password for SMSTrend account    #
+                                                                      #
+ my $message_type;       # Message Type: GS (without customized       #
+                         # sender) or GP (with customized sender)     #
+                                                                      #  
+ my $message;            # Message to send. Maximum 160 char per      #
+                         # message or maximum 1000 char for           #
+                         # concatenated messages. The following chars #
+                         # count as two chars: ^ { } \[ ~ ] | Û;      #
+                                                                      #  
+ my $recipient;          # Target phone number with country prefix:   #
+                         # +34610123456 or 0034610123456              #
+                                                                      #  
+ my $sender;             # If message_type = GP, then, you can        #  
+                         # customize the remitent by this way:        #  
+                         # 1. Phone number with 16 number max.        #
+                         # 2. Alphanumeric string wiht 11 char max.   #
+                                                                      #
+ my $sheduled_delivery_time;  # Date and time to delivery the message #
+                              # Format: yyyyMMddHHmmss                #
+                                                                      #  
+ my $order_id;                # You can customize an unique order id  # 
+                              # to track the message: maximum 32 char #
+ my $from;              # From date to view history                   #
+ my $to;                # To date to view history                     #
+                        # Format: yyyyMMddHHmmss                      #
+#                                                                     #
+#                                                                     #
+# ---------------------------------------------------------------------
+
+
+
+
+
+# Selected option: ----------------------------------------------------
+my $choosen_option = uc($ARGV[0]);
+# ---------------------------------------------------------------------
+
+
+
+# HELP  ---------------------------------------------------------------
+if($choosen_option eq "HELP" or $choosen_option eq ""){
+    print q{
+    -------------------------------  SMS -----------------------------
+                                Hector Valverde
+                            www.hectorvaverde.com
+    ------------------------------------------------------------------
+                
+        sms is an interface developed by Hector Valverde that
+    connects your computer to the servers of One-etere SMSTrend. You
+    can send SMS from your personal computer or server easily.
+    
+    CONFIG:
+    
+        Before use the program you must to sing up in SMSTrend 
+    (http://public.smstrend.net/) and configure your login data as
+    following:
+    
+        $ sms config <username> <password> <message_type> <sender>
+    
+    USAGE
+    
+    	$ sms <option> [<arguments]
+    
+    OPTIONS
+    
+        cancel <order_id>
+                    - Cancel a scheduled sms given an order id
+        config <username> <password> <message_type> <sender>
+                    - Set up your login data, and params for SMSTrend
+        credit
+                    - Show remaining credit
+        fsend <file> <message> [<sheduledDate> <order_id>]
+                    - Send a massive message to a file list (new), numbers must
+                      be separated by a new line
+        help
+                    - Show this text
+        history <fromDate> <toDate>
+                    - View sent messages between two dates
+        send <recipient> <message> [<scheduledDate> <order_id>]
+                    - Send a single sms
+        status <order_id>
+                    - View the status of a scheduled sms
+    
+    
+    ARGUMENTS
+    
+        <fromDate>          - Date with format: yyyyMMddhhmmss
+        <login>             - Your SMSTrend username
+        <message>           - Message to send
+        <message_type>      - GP or GS (depends on your account settings)
+        <order_id>          - Id string for a given sms
+        <password>          - Your SMSTrend password
+        <recipient>         - A phone number to send the SMS, e.g.:
+                              +34610123456 or 0034605447804
+        <sender>            - A phone number or alphanumeric short string
+                              only if message_type = GP
+        <scheduledDate>     - Date with format: yyyyMMddhhmmss
+        <toDate>            - Date with format: yyyyMMddhhmmss
+
+    EXAMPLES
+    
+        1. Send a single message:
+            $ sms send +34610123456 "This is the message"
+        2. Scheduled a message for 25th June 2013 at 15:30:00 and
+           identificate it with the name "hvSMS":
+            $ sms send +34610123456 "Happy birthday, Hector" 20130625153000 hvSMS
+        3. View the status of a scheduled SMS
+            $ sms status hvSMS
+        4. Cancel a scheduled SMS
+            $ sms cancel hvSMS
+        5. View your credit
+            $ sms credit
+        6. View your message history between two dates   
+            $ sms history 20120625153000 20121125153000
+            
+    BUGS
+    
+        If you find any bug, please, send an email to hvalverde@uma.es
+        
+            
+        };
+    print "\n";
+    exit;
+}
+# ---------------------------------------------------------------------
+
+
+
+
+
+
+# Chapter 2: ----------------------------------------------------------
+# Variable assignation ------------------------------------------------
+# Assign variable values from config file or arguments
+# 2.1 Open config file (if exists) and load params
+    if( -e "$home/.smsconfig"){
+    open CONF, "$home/.smsconfig" or die("There is any problem with config file\n");
+    # Eval each param in config file
+    for $line (<CONF>){ eval($line); }
+    }elsif($choosen_option ne "CONFIG"){
+       print "\nYou must configure your login data. View \$ sms help for further information\n\n";
+    }
+    
+# 2.2  Take params from config and or arguments
+    
+    # To send a message:
+    # sms send <recipient> <message> [<sheduled_delivery_time> <order_id>]
+    if($choosen_option eq "SEND"){
+        $recipient              = $ARGV[1];
+        $message                = $ARGV[2];
+        $sheduled_delivery_time = $ARGV[3];
+        $order_id               = $ARGV[4];
+    }
+    # To send a massive message to a list of recipients in a file
+    if($choosen_option eq "FSEND"){
+        $file                   = $ARGV[1];
+        $recipient              = "";
+            open LIST, $file or die("\nSorry, cannot open the file: $file\n");
+            while (my $item_recipient = <LIST>){
+                chomp($item_recipient);
+                $recipient .= $recipient.",".$item_recipient;
+            }
+        $message                = $ARGV[2];
+        $sheduled_delivery_time = $ARGV[3];
+        $order_id               = $ARGV[4];
+    }
+    # To view the status for a sheduled message:
+    # sms status <order_id>
+    # To cancel a sheduled message:
+    # sms cancel <order_id>
+    if($choosen_option eq "STATUS" || $choosen_option eq "CANCEL"){
+        $order_id               = $ARGV[1];
+    }
+    # To config user account
+    # sms config <user@mail> <password> <message_type> <sender>
+    if($choosen_option eq "CONFIG"){
+        $login                  = $ARGV[1];
+        $password               = $ARGV[2];
+        $message_type           = $ARGV[3];
+        $sender                 = $ARGV[4];
+    }
+    # To view history
+    # sms history <from> <to>
+    if($choosen_option eq "HISTORY"){
+        $from                   = $ARGV[1];
+        $to                     = $ARGV[2];
+    }
+# 2.3. Build the complete url depending on the option choosen
+    my $url = $base_url.$opts_url{$choosen_option};
+# ---------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+# Chapter 3: ----------------------------------------------------------
+# Variable validation -------------------------------------------------
+# $error = 0 if no error and 1 if error
+    my $error = 0;
+    my $error_message = "";
+#   1. Is $choosen_option between the allowed options?
+    if($opts_url{$choosen_option} eq ""){
+        $error_message.=" Invalid option \"$choosen_option\"\n";
+        $error = 1;
+    }
+# 3.1 MODE SEND -------------------------------------------------------
+if($choosen_option eq "SEND"){
+#   2. Is $login not empty?
+    if($login eq ""){
+        $error_message.=" No username defined\n";
+        $error = 1;
+    }
+#   3. Is $password not empty?
+    if($password eq ""){
+        $error_message.=" No password defined\n";
+        $error = 1;
+    }
+#   4. Is $message_type not empty and well formed (GP or GS)?
+    $message_type = uc($message_type); # Turn in upper case
+    if($message_type ne "GP" and $message_type ne "GS"){
+        $error_message.=" Invalid message type:\"$message_type\"\n";
+        $error = 1;
+    }
+#   5. Is $message length greater than 1 and lower than 1000?
+    my $msg_length = length($message);
+    if($msg_length > 1000){
+        $error_message.=" Too many characters in the message\n";
+        $error = 1;
+    }
+    if($message eq ""){
+        $error_message.=" Message not defined\n";
+        $error = 1;
+    }
+#   6. Is $recipient a valid phone number?
+    if($recipient eq ""){
+        $error_message.=" Invalid or empty recipient: $recipient\n";
+        $error = 1;
+    }
+#   7. Is $sender well formed (phone or short varchar (11))?
+    if($sender eq ""){
+        $error_message.=" Invalid sender\n";
+        $error = 1;
+    }
+#   8. If $sheduled_delivery_time is not empty, it is well formated?
+    if($sheduled_delivery_time ne ""){
+        if(grep(/^2[0-9][0-9][0-9][0-1][0-9][0-3][0-9][0-2][0-9][0-6][0-9][0-6][0-9]$/,$sheduled_delivery_time)){
+            my $year = substr($sheduled_delivery_time,0,4);
+            my $month = substr($sheduled_delivery_time,4,2);
+            my $day = substr($sheduled_delivery_time,6,2);
+            my $hour = substr($sheduled_delivery_time,8,2);
+            my $minute = substr($sheduled_delivery_time,10,2);
+            my $second = substr($sheduled_delivery_time,12,2);
+            # Current date and time
+            my @localtime = localtime(time);
+            if($year < $localtime[5]){
+                $error_message.=" Invalid year\n";
+                $error = 1;
+            }
+            if($year > ($localtime[5]+100+1900)){
+                $error_message.=" Invalid year\n";
+                $error = 1;
+            }
+            if($month < 1 or $month > 12){
+                $error_message.=" Invalid month\n";
+                $error = 1;
+            }
+            if($day < 1 or $day > 31){
+                $error_message.=" Invalid day\n";
+                $error = 1;
+            }
+            if($hour > 23){
+                $error_message.=" Invalid hour\n";
+                $error = 1;
+            }
+            if($minute > 60){
+                $error_message.=" Invalid minute\n";
+                $error = 1;
+            }
+            if($second > 60){
+                $error_message.=" Invalid second\n";
+                $error = 1;
+            }
+            print "Message sheduled for $day/$month/$year $hour:$minute:$second\n";
+        }else{
+            $error_message.=" Sheduled delivery time bad formed (must be: yyyyMMddHHmmss).\n";
+            $error = 1;
+        }
+    }
+#   9. Is $order_id length lower than 32 char?
+    if(length($order_id) > 32){
+        $error_message.=" Order id too long, max. 32 chars.\n";
+        $error = 1;
+    }
+}
+# 3.2 MODE STATUS OR CANCEL -------------------------------------------
+if($choosen_option eq "STATUS" || $choosen_option eq "CANCEL"){
+    if($order_id eq ""){
+        $error_message.=" Please, enter an order id\n";
+        $error = 1;
+    }
+}
+# 3.3 MODE CONFIG -----------------------------------------------------
+if($choosen_option eq "CONFIG"){
+    if($login eq ""){
+        $error_message.=" Invalid or empty username\n";
+        $error = 1;
+    }
+    if($password eq ""){
+        $error_message.=" Invalid or empty password\n";
+        $error = 1;
+    }
+    if(uc($message_type) ne "GP" and uc($message_type) ne "GS"){
+        $error_message.=" Invalid or empty message type: $message_type\n";
+        $error = 1;
+    }
+    if($sender eq ""){
+        $error_message.=" Invalid or empty sender\n";
+        $error = 1;
+    }
+}
+# 3.4 MODE CREDIT -----------------------------------------------------
+if($choosen_option eq "CREDIT"){
+    if($login eq ""){
+        $error_message.=" Invalid or empty username\n";
+        $error = 1;
+    }
+    if($password eq ""){
+        $error_message.=" Invalid or empty password\n";
+        $error = 1;
+    }
+}
+# 3.5 MODE HISTORY ----------------------------------------------------
+if($choosen_option eq "HISTORY"){
+    if($login eq ""){
+        $error_message.=" Invalid or empty username\n";
+        $error = 1;
+    }
+    if($password eq ""){
+        $error_message.=" Invalid or empty password\n";
+        $error = 1;
+    }
+    if($from eq ""){
+        $error_message.=" Invalid 'from' date\n";
+        $error = 1;
+    }
+    if($to eq ""){
+        $error_message.=" Invalid 'to' date\n";
+        $error = 1;
+    }
+}
+# 3.6 ERROR REPORTING -------------------------------------------------
+# If there is an error, show the error message and exit:
+    if($error){
+        print "-----------------------\n";
+        print "Following error/s found:\n";
+        print "=======================\n";
+        print $error_message;
+        print "-----------------------\n";
+        exit;
+    }
+# ---------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Chapter 4: ----------------------------------------------------------
+# Config SMSTrend account ---------------------------------------------
+if($choosen_option eq "CONFIG"){
+    # Write a file with login, password, sender and message type
+    # Params preparation
+    $login =~ s/@/\\@/g; 
+    my $field_login        = "\$login=\"".$login."\"";
+    my $field_pass         = "\$password=\"".$password."\"";
+    my $field_sender       = "\$sender=\"".$sender."\"";
+    my $field_message_type = "\$message_type=\"".$message_type."\"";
+    # File creation
+    open CONF, ">".$home."/.smsconfig" or die(" Unable to write config file");
+    # File writting
+    print CONF $field_login.";\n";
+    print CONF $field_pass.";\n";
+    print CONF $field_sender.";\n";
+    print CONF $field_message_type.";\n";
+    # File closing
+    close CONF;
+    # Ending program
+    exit;
+}
+# ---------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+# Chapter 5: ----------------------------------------------------------
+# HTTP Request building -----------------------------------------------
+# Build HTTP headers
+my $ua  = LWP::UserAgent->new();
+my $req = POST($url, [
+                      "login"         => $login,
+                      "password"      => $password,
+                      "sender"        => $sender,
+                      "message_type"  => $message_type,
+                      "recipient"     => $recipient,
+                      "message"       => $message,
+                      "scheduled_delivery_time"  => $sheduled_delivery_time,
+                      "order_id"                 => $order_id,
+                      "from"                     => $from,
+                      "to"                       => $to
+                      ]);
+# ---------------------------------------------------------------------
+
+
+
+
+
+
+# Chapter 6: ----------------------------------------------------------
+# HTTP Request sending ------------------------------------------------
+# Send the petition and wait for response
+my $response = $ua->request($req)->content();
+# ---------------------------------------------------------------------
+
+
+
+
+
+# Chapter 7: ----------------------------------------------------------
+# Parsing HTTP response -----------------------------------------------
+# Once we have the response, read it and interpret the results
+$response =~ s/;/\n/g;
+$response =~ s/\|/\t/g;
+# ---------------------------------------------------------------------
+
+
+
+
+# Chapter 8: ----------------------------------------------------------
+# Output communication info and end program ---------------------------
+print "\n\n\tSMSVal (http://www.hectorvalverde.com):\n";
+print "\t========================================\n";
+if($choosen_option eq "SEND"){
+    print "\n\n\tMESSAGE INFO:\n";
+    print "\t--------------------------\n";
+    print "\tMessage length: ".length($message)." chars\n";
+    print "\tSent to: ".$recipient."\n";
+    print "\t--------------------------\n";
+}
+# Put in standar output the interpetation (failed and why or success)
+print "\n\tSERVER RESPONSE:\n";
+print "\t--------------------------\n";
+foreach $line (split(/\n/,$response)){
+    print "\t   ".$line."\n";
+}
+print "\t--------------------------\n\n";
+print "\tEND\n";
+print "\t========================================\n\n\n";
+exit;
+# ---------------------------------------------------------------------
+
+__END__
+
+=head1 NAME
+
+sms - A Gateway interface to send SMS text to celular phones using SMSTrend services
+
+=head1 VERSION
+
+Version 2.15
+
+=head1 DESCRIPTION
+
+sms is an interface developed by Hector Valverde that
+connects your computer to the servers of One-etere SMSTrend. You
+can send SMS from your personal computer or server easily.
+    
+=head1 CONFIGURATION
+    
+Before use the program you must to sing up in SMSTrend 
+L<http://public.smstrend.net/> and configure your login data as
+following:
+    
+        $ B<sms> config <username> <password> <message_type> <sender>
+    
+=head1 USAGE
+    
+    	$ B<sms> <option> [<arguments]
+    
+=head1 OPTIONS
+
+=over 4
+    
+=item *        B<cancel> <order_id> - Cancel a scheduled sms given an order id
+		    
+=item *        B<config> <username> <password> <message_type> <sender> - Set up your login data, and params for SMSTrend
+		    
+=item *        B<credit> - Show remaining credit
+		    
+=item *        B<fsend> <file> <message> [<sheduledDate> <order_id>] - Send a massive message to a file list (new), numbers must
+                      be separated by a new line
+		      
+=item *        B<help> - Show this text
+		    
+=item *        B<history> <fromDate> <toDate> - View sent messages between two dates
+		    
+=item *        B<send> <recipient> <message> [<scheduledDate> <order_id>] - Send a single sms
+		    
+=item *        B<status> <order_id> - View the status of a scheduled sms
+
+=back
+
+    
+=head1 ARGUMENTS
+
+=over 4
+
+=item *        B<<fromDate>> - Date with format: yyyyMMddhhmmss
+
+=item *        B<<login>> - Your SMSTrend username
+
+=item *        B<<message>> - Message to send
+
+=item *        B<<message_type>> - GP or GS (depends on your account settings)
+
+=item *        B<<order_id>> - Id string for a given sms
+
+=item *        B<<password>> - Your SMSTrend password
+
+=item *        B<<recipient>> - A phone number to send the SMS, e.g.: +34610123456 or 0034605447804
+
+=item *        B<<sender>> - A phone number or alphanumeric short string only if message_type = GP
+
+=item *        B<<scheduledDate>> - Date with format: yyyyMMddhhmmss
+
+=item *        B<<toDate>> - Date with format: yyyyMMddhhmmss
+
+=back
+
+=head1 EXAMPLES
+
+=over 4
+
+=item 1. Send a single message:
+
+
+$ sms B<send> +34610123456 "This is the message"
+    
+=item 2. Scheduled a message for 25th June 2013 at 15:30:00 and identificate it with the name "hvSMS":
+
+	   
+$ sms B<send> +34610123456 "Happy birthday, Hector" 20130625153000 hvSMS
+    
+=item 3. View the status of a scheduled SMS:
+
+
+$ sms B<status> hvSMS
+    
+=item 4. Cancel a scheduled SMS:
+
+
+$ sms B<cancel> hvSMS
+    
+=item 5. View your credit:
+
+
+$ sms B<credit>
+    
+=item 6. View your message history between two dates:
+
+
+$ sms B<history> 20120625153000 20121125153000
+    
+=back
+ 
+=head1 BUGS
+    
+If you find any bug, please, send an email to hvalverde@uma.es
+
+=head1 SUPPORT
+
+You can find documentation for this module with the man command.
+
+    man sms
+
+You can also look for information at GitHub:
+
+    L<https://github.com/hvpareja/CPAN-SMSTrend/>
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2012 B<Hector Valverde>.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See L<http://dev.perl.org/licenses/> for more information.
+
+=cut
