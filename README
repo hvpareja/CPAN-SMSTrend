@@ -20,7 +20,7 @@
 	
 	2. CPAN (Recomended):
 	
-	perl -MCPAN -e "install smscli"
+	perl -MCPAN -e "install App::SMSCli"
 	
     
     CONFIGURATION:
