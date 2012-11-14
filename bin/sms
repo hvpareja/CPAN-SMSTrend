@@ -38,7 +38,7 @@ use LWP::UserAgent;
 # Home path from environment
 my $home = $ENV{"HOME"};
 
-our $VERSION = 2.16;
+our $VERSION = 2.17;
 # ---------------------------------------------------------------------
 
 
@@ -110,12 +110,12 @@ my $choosen_option = uc($ARGV[0]);
 # HELP  ---------------------------------------------------------------
 if($choosen_option eq "HELP" or $choosen_option eq ""){
     print q{
-    -------------------------------  SMS -----------------------------
+    -------------------------------  SMSCli --------------------------
                                 Hector Valverde
                             www.hectorvaverde.com
     ------------------------------------------------------------------
                 
-        sms is an interface developed by Hector Valverde that
+        smscli is an interface developed by Hector Valverde that
     connects your computer to the servers of One-etere SMSTrend. You
     can send SMS from your personal computer or server easily.
     
@@ -557,7 +557,7 @@ __END__
 
 =head1 NAME
 
-smscli - A Gateway interface to send SMS text to celular phones using SMSTrend services
+smscli - A Command Line Interface to send SMS messages to cellular phones, single or massively way.
 
 =head1 VERSION
 
@@ -565,7 +565,7 @@ Version 2.16
 
 =head1 DESCRIPTION
 
-sms is an interface developed by Hector Valverde that
+SMSCli is an interface developed by Hector Valverde that
 connects your computer to the servers of One-etere SMSTrend. You
 can send SMS from your personal computer or server easily.
     
