@@ -15,5 +15,5 @@ inc/
 nytprof.out
 pod2htm*.tmp
 pm_to_blib
-smscli-*
-smscli-*.tar.gz
+App-SMSCli-*
+App-SMSCli-*.tar.gz

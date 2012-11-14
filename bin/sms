@@ -557,7 +557,7 @@ __END__
 
 =head1 NAME
 
-smscli - A Command Line Interface to send SMS messages to cellular phones, single or massively way.
+App::SMSCli - A Command Line Interface to send SMS messages to cellular phones, single or massively way.
 
 =head1 VERSION
 
